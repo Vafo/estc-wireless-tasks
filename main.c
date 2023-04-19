@@ -81,7 +81,7 @@
 #include "nrf_log_backend_usb.h"
 
 
-#define DEVICE_NAME                     "ESTC"                                  /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                     "Vafokhon Safokhujaev"                  /**< Name of device. Will be included in the advertising data. */
 #define MANUFACTURER_NAME               "NordicSemiconductor"                   /**< Manufacturer. Will be passed to Device Information Service. */
 #define APP_ADV_INTERVAL                300                                     /**< The advertising interval (in units of 0.625 ms. This value corresponds to 187.5 ms). */
 
@@ -107,11 +107,20 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 
-static ble_uuid_t m_adv_uuids[] =                                               /**< Universally unique service identifiers. */
-{
-    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
-};
+// static ble_uuid_t m_adv_uuids[] =                                               /**< Universally unique service identifiers. */
+// {
+//     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
+// };
 
+static uint8_t long_enough_name[] = "Hello everyone";
+
+static ble_advdata_manuf_data_t manuf_data = {
+    .company_identifier = -1,
+    .data = {
+        .p_data = long_enough_name,
+        .size = sizeof(long_enough_name) / sizeof(uint8_t),
+    }
+};
 
 static void advertising_start(void);
 
@@ -424,11 +433,14 @@ static void advertising_init(void)
 
     memset(&init, 0, sizeof(init));
 
-    init.advdata.name_type               = BLE_ADVDATA_FULL_NAME;
+    init.advdata.name_type               = BLE_ADVDATA_NO_NAME;
     init.advdata.include_appearance      = true;
     init.advdata.flags                   = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+    // init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    // init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+
+    init.advdata.p_manuf_specific_data = &manuf_data;
+    init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
 
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
