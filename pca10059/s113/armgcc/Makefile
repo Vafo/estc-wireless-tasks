@@ -3,8 +3,8 @@ TARGETS          := nrf52840_xxaa
 OUTPUT_DIRECTORY := _build
 DFU_PORT         ?= /dev/ttyACM0
 
-SDK_ROOT := /home/user/devel/esl-nsdk
-PROJ_DIR := /home/user/ESTC/estc-wireless-tasks
+SDK_ROOT := /home/vafo/dev/embedded/base/esl-nsdk
+PROJ_DIR := /home/vafo/dev/embedded/estc-wireless-tasks
 
 $(OUTPUT_DIRECTORY)/nrf52840_xxaa.out: \
   LINKER_SCRIPT  := estc_adverts_gcc_nrf52.ld
