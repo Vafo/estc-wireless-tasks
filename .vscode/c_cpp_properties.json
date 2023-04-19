@@ -1,7 +1,7 @@
 {
     "env": {
-        "SDK_ROOT": "/home/user/devel/esl-nsdk",
-        "SDK_CFG": "${workspaceFolder}/pca10059/config",
+        "SDK_ROOT": "/home/vafo/dev/embedded/base/esl-nsdk",
+        "SDK_CFG": "${workspaceFolder}/pca10059/s113/config",
         "PROJ_DIR": "${workspaceFolder}",
         "PROJ_PARTS": "${workspaceFolder}/main-parts",
         "PROJ_MODULES": "${workspaceFolder}/modules",
