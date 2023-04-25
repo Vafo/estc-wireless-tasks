@@ -105,6 +105,9 @@ NRF_BLE_GATT_DEF(m_gatt);                                                       
 NRF_BLE_QWR_DEF(m_qwr);                                                         /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                             /**< Advertising module instance. */
 
+#define PERIODIC_NOTIFIER_PERIOD_MS 5000
+APP_TIMER_DEF(m_periodic_notifier);
+
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 
 static ble_uuid_t m_adv_uuids[] =                                               /**< Universally unique service identifiers. */
@@ -117,7 +120,10 @@ static ble_uuid_t m_adv_uuids[] =                                               
 ble_estc_service_t m_estc_service; /**< ESTC example BLE service */
 
 static void advertising_start(void);
-
+static void periodic_notifier_handler(void *p_ctx)
+{
+    estc_ble_service_hello_notify(&m_estc_service);
+}
 
 /**@brief Callback function for asserts in the SoftDevice.
  *
@@ -143,6 +149,9 @@ static void timers_init(void)
 {
     // Initialize timer module.
     ret_code_t err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_periodic_notifier, APP_TIMER_MODE_REPEATED, periodic_notifier_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -278,6 +287,7 @@ static void conn_params_init(void)
  */
 static void application_timers_start(void)
 {
+    app_timer_start(m_periodic_notifier, APP_TIMER_TICKS(PERIODIC_NOTIFIER_PERIOD_MS), NULL);
 }
 
 
@@ -345,6 +355,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected (conn_handle: %d)", p_ble_evt->evt.gap_evt.conn_handle);
             // LED indication will be changed when advertising starts.
+            m_estc_service.connection_handle = BLE_CONN_HANDLE_INVALID;
             break;
 
         case BLE_GAP_EVT_CONNECTED:
@@ -356,6 +367,8 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
+
+            m_estc_service.connection_handle = m_conn_handle;
             break;
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -385,6 +398,13 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
             break;
+
+        case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+            NRF_LOG_INFO("Sys attributes missing");
+            uint16_t conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+
+            err_code = sd_ble_gatts_sys_attr_set(conn_handle, NULL, 0, 0);
+            APP_ERROR_CHECK(err_code);
 
         default:
             // No implementation needed.

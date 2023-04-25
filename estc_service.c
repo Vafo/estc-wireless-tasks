@@ -41,6 +41,11 @@ ble_uuid128_t base_uuid = {
     .uuid128 = ESTC_BASE_UUID
 };
 
+uint8_t m_char_user_desc[] = "Custom Characteristic";
+
+uint8_t m_char_hello_val[] = "Hello";
+uint8_t m_char_hello_val_reversed[] = "olleH";
+
 static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service);
 
 ret_code_t estc_ble_service_init(ble_estc_service_t *service)
@@ -63,6 +68,8 @@ ret_code_t estc_ble_service_init(ble_estc_service_t *service)
     NRF_LOG_DEBUG("%s:%d | Service UUID type: 0x%02x", __FUNCTION__, __LINE__, service_uuid.type);
     NRF_LOG_DEBUG("%s:%d | Service handle: 0x%04x", __FUNCTION__, __LINE__, service->service_handle);
 
+    service->connection_handle = BLE_CONN_HANDLE_INVALID;
+
     return estc_ble_add_characteristics(service);
 }
 
@@ -82,6 +89,12 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
     ble_gatts_char_md_t char_md = { 0 };
     char_md.char_props.read = 1;
     char_md.char_props.write = 1;
+    
+    // Add User Description Descriptor
+    char_md.p_char_user_desc = m_char_user_desc;
+    char_md.char_user_desc_size = sizeof(m_char_user_desc) / sizeof(m_char_user_desc[0]);
+    char_md.char_user_desc_max_size = sizeof(m_char_user_desc) / sizeof(m_char_user_desc[0]);
+    char_md.p_user_desc_md = NULL;  // Default md values of user descr attr 
 
     // Configures attribute metadata. For now we only specify that the attribute will be stored in the softdevice
     ble_gatts_attr_md_t attr_md = { 0 };
@@ -104,6 +117,78 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
     // TODO: 6.4. Add new characteristic to the service using `sd_ble_gatts_characteristic_add`
     error_code = sd_ble_gatts_characteristic_add(service->service_handle, &char_md, &attr_char_value, &service->char_1);
     APP_ERROR_CHECK(error_code);
+
+    // Hello Characteristic
+    ble_uuid_t char_hello_uuid = {
+        .uuid = ESTC_GATT_CHAR_HELLO_UUID
+    };
+
+    error_code = sd_ble_uuid_vs_add(&base_uuid, &char_hello_uuid.type);
+    APP_ERROR_CHECK(error_code);
+
+    ble_gatts_attr_md_t cccd_md = {
+        .vloc = BLE_GATTS_VLOC_STACK
+    };
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
+
+    ble_gatts_char_pf_t char_pf = {
+        .format = BLE_GATT_CPF_FORMAT_UTF8S,
+    };
+
+    ble_gatts_char_md_t char_hello_md = {0};
+    char_hello_md.char_props.read = 1;
+    char_hello_md.char_props.notify = 1;
+    char_hello_md.p_char_pf = &char_pf;
+    char_hello_md.p_cccd_md = &cccd_md;
+    
+    ble_gatts_attr_md_t char_hello_value_md = {0};
+    char_hello_value_md.vloc = BLE_GATTS_VLOC_STACK;
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&char_hello_value_md.read_perm);
+
+    ble_gatts_attr_t char_hello_value = {0};
+    char_hello_value.p_attr_md = &char_hello_value_md;
+    char_hello_value.p_uuid = &char_hello_uuid;
+    char_hello_value.p_value = m_char_hello_val;
+    char_hello_value.init_len = sizeof(m_char_hello_val) / sizeof(m_char_hello_val[0]);
+    char_hello_value.max_len = sizeof(m_char_hello_val) / sizeof(m_char_hello_val[0]);
+    
+    error_code = sd_ble_gatts_characteristic_add(service->service_handle, &char_hello_md, &char_hello_value, &service->char_hello);
+    APP_ERROR_CHECK(error_code);
+    
+
+    return NRF_SUCCESS;
+}
+
+ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
+{
+    static uint8_t inverter = 0;
+    NRF_LOG_INFO("Trying to notify ...");
+    if(service->connection_handle == BLE_CONN_HANDLE_INVALID)
+    {
+        NRF_LOG_INFO("... connection handle is invalid");
+        return BLE_ERROR_INVALID_CONN_HANDLE;
+    }
+
+    ret_code_t error_code = NRF_SUCCESS;
+    uint16_t val_len = inverter ? sizeof(m_char_hello_val_reversed) / sizeof(m_char_hello_val_reversed[0]) : \
+                                  sizeof(m_char_hello_val) / sizeof(m_char_hello_val[0]);
+    uint8_t *val = inverter ? m_char_hello_val_reversed : m_char_hello_val;
+
+    ble_gatts_hvx_params_t hvx_params = {
+        .handle = service->char_hello.value_handle,
+        .type = BLE_GATT_HVX_NOTIFICATION,
+        .offset = 0,
+        .p_data = val,
+        .p_len = &val_len
+    };
+
+    error_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+    NRF_LOG_INFO("Retval of sd_ble_gatts_hvx : %x", error_code);
+    // APP_ERROR_CHECK(error_code);
+    
+    NRF_LOG_INFO("Notified with val %s, val_len = %d", val, val_len);
+    inverter ^= 1;
 
     return NRF_SUCCESS;
 }

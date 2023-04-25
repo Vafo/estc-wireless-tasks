@@ -50,6 +50,7 @@
 
 // TODO: 3. Pick a characteristic UUID and define it:
 #define ESTC_GATT_CHAR_1_UUID 0xABBB
+#define ESTC_GATT_CHAR_HELLO_UUID 0xABBC
 
 typedef struct
 {
@@ -58,12 +59,16 @@ typedef struct
 
     // TODO: 6.3. Add handles for characterstic (type: ble_gatts_char_handles_t)
     ble_gatts_char_handles_t char_1;
+    ble_gatts_char_handles_t char_hello;
 } ble_estc_service_t;
+
 
 ret_code_t estc_ble_service_init(ble_estc_service_t *service);
 
 void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx);
 
 void estc_update_characteristic_1_value(ble_estc_service_t *service, int32_t *value);
+
+ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service);
 
 #endif /* ESTC_SERVICE_H__ */
