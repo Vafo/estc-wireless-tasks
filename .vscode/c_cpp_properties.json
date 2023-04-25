@@ -1,7 +1,7 @@
 {
     "env": {
         "SDK_ROOT": "/home/vafo/dev/embedded/base/esl-nsdk",
-        "SDK_CFG": "${workspaceFolder}/pca10059/s113/config",
+        "SDK_CFG": "${workspaceFolder}/pca10059/s140/config",
         "PROJ_DIR": "${workspaceFolder}",
         "PROJ_PARTS": "${workspaceFolder}/main-parts",
         "PROJ_MODULES": "${workspaceFolder}/modules",
@@ -97,7 +97,8 @@
                 "__HEAP_SIZE=8192",
                 "__STACK_SIZE=8192",
                 "APP_TIMER_V2",
-                "APP_TIMER_V2_RTC1_ENABLED"
+                "APP_TIMER_V2_RTC1_ENABLED",
+                "S140"
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,

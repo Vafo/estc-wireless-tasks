@@ -61,6 +61,10 @@
         "nvmc_api.h": "c",
         "nrfx_nvmc.h": "c",
         "nrf_dfu.h": "c",
-        "nrf_bootloader_info.h": "c"
+        "nrf_bootloader_info.h": "c",
+        "ble_advdata.h": "c",
+        "ble_srv_common.h": "c",
+        "ble_lbs.h": "c",
+        "ble_hci.h": "c"
     }
 }
