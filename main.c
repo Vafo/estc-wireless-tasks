@@ -108,6 +108,9 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 #define PERIODIC_NOTIFIER_PERIOD_MS 5000
 APP_TIMER_DEF(m_periodic_notifier);
 
+#define PERIODIC_INDICATOR_PERIOD_MS 2000
+APP_TIMER_DEF(m_periodic_indicator);
+
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 
 static ble_uuid_t m_adv_uuids[] =                                               /**< Universally unique service identifiers. */
@@ -120,9 +123,16 @@ static ble_uuid_t m_adv_uuids[] =                                               
 ESTC_SERVICE_DEF(m_estc_service); /**< ESTC example BLE service */
 
 static void advertising_start(void);
+
 static void periodic_notifier_handler(void *p_ctx)
 {
     estc_ble_service_hello_update(&m_estc_service);
+}
+
+static void periodic_indicator_handler(void *p_ctx)
+{
+    uint8_t state = nrf_gpio_pin_input_get(BSP_BUTTON_0);
+    estc_ble_service_btn_state_set(&m_estc_service, &state);
 }
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -152,6 +162,9 @@ static void timers_init(void)
     APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_create(&m_periodic_notifier, APP_TIMER_MODE_REPEATED, periodic_notifier_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_periodic_indicator, APP_TIMER_MODE_REPEATED, periodic_indicator_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -287,7 +300,13 @@ static void conn_params_init(void)
  */
 static void application_timers_start(void)
 {
-    app_timer_start(m_periodic_notifier, APP_TIMER_TICKS(PERIODIC_NOTIFIER_PERIOD_MS), NULL);
+    ret_code_t err_code;
+
+    err_code = app_timer_start(m_periodic_notifier, APP_TIMER_TICKS(PERIODIC_NOTIFIER_PERIOD_MS), NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_periodic_indicator, APP_TIMER_TICKS(PERIODIC_INDICATOR_PERIOD_MS), NULL);
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -448,6 +467,7 @@ static void ble_stack_init(void)
 static void bsp_event_handler(bsp_event_t event)
 {
     ret_code_t err_code;
+    uint8_t btn_state;
 
     switch (event)
     {
@@ -463,6 +483,12 @@ static void bsp_event_handler(bsp_event_t event)
                 APP_ERROR_CHECK(err_code);
             }
             break; // BSP_EVENT_DISCONNECT
+        
+        case BSP_EVENT_KEY_0:
+            btn_state = 1;
+            estc_ble_service_btn_state_set(&m_estc_service, &btn_state);
+            break;
+
         default:
             break;
     }

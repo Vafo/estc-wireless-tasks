@@ -89,7 +89,9 @@ void estc_ble_service_on_ble_event(const ble_evt_t *p_ble_evt, void *ctx)
         case BLE_GAP_EVT_CONNECTED:
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             p_estc_service->connection_handle = m_conn_handle;
+
             p_estc_service->hvn_available_queue_element_count = ESTC_SERVICE_HVN_QUEUE_SIZE;
+            p_estc_service->inidication_free = 1;
             break;
 
         case BLE_GATTS_EVT_HVN_TX_COMPLETE:
@@ -101,10 +103,27 @@ void estc_ble_service_on_ble_event(const ble_evt_t *p_ble_evt, void *ctx)
             }
             break;
 
+        case BLE_GATTS_EVT_HVC:
+            m_conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+            if(m_conn_handle == p_estc_service->connection_handle)
+            {
+                if(p_estc_service->char_btn_state.value_handle == p_ble_evt->evt.gatts_evt.params.hvc.handle)
+                {
+                    p_estc_service->inidication_free = 1;
+                }
+            }
+            break;
+
         case BLE_GATTS_EVT_TIMEOUT:
             // Disconnect on GATT Server timeout event.
+            m_conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
             
+            if(m_conn_handle == p_estc_service->connection_handle)
+            {
+                p_estc_service->connection_handle = BLE_CONN_HANDLE_INVALID;
+            }
             break;
+
 
         
         default:
@@ -263,7 +282,7 @@ ret_code_t estc_ble_service_hello_update(ble_estc_service_t *service)
 
     error_code = sd_ble_gatts_value_set(service->connection_handle, service->char_hello.value_handle, &new_val);
     APP_ERROR_CHECK(error_code);
-    
+
     error_code = estc_ble_service_hello_notify(service);
     
     if(error_code == NRF_SUCCESS)
@@ -310,9 +329,76 @@ ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
     NRF_LOG_INFO("There is space in hvn queue");
 
     error_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
-    NRF_LOG_INFO("Retval of sd_ble_gatts_hvx : %x", error_code);
+    NRF_LOG_INFO("%s: retval of sd_ble_gatts_hvx : %x", __FUNCTION__, error_code);
     VERIFY_SUCCESS(error_code);
     service->hvn_available_queue_element_count--;
+
+    return NRF_SUCCESS;
+}
+
+ret_code_t estc_ble_service_btn_state_set(ble_estc_service_t *service, uint8_t *new_state)
+{
+    ret_code_t error_code = NRF_SUCCESS;
+
+    uint8_t m_new_state = *new_state;
+
+    ble_gatts_value_t new_val = {
+        .p_value = &m_new_state,
+        .len = sizeof(uint8_t),
+        .offset = 0
+    };
+
+    error_code = sd_ble_gatts_value_set(service->connection_handle, service->char_btn_state.value_handle, &new_val);
+    APP_ERROR_CHECK(error_code);
+
+    error_code = estc_ble_service_btn_state_indicate(service);
+    
+    if(error_code == NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("Indicated with new state %d", m_new_state);
+    }
+
+    return NRF_SUCCESS;
+}
+
+ret_code_t estc_ble_service_btn_state_indicate(ble_estc_service_t *service)
+{
+    NRF_LOG_INFO("Trying to indicate ...");
+    if(service->connection_handle == BLE_CONN_HANDLE_INVALID)
+    {
+        NRF_LOG_INFO("... connection handle is invalid");
+        return BLE_ERROR_INVALID_CONN_HANDLE;
+    }
+    ret_code_t error_code = NRF_SUCCESS;
+
+    error_code = estc_ble_check_user_need_for_hvx(service->connection_handle, service->char_btn_state.cccd_handle, 
+                                                    BLE_GATT_HVX_INDICATION);
+    if(error_code != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("... attempted to indicate client, who doesn't need it");
+        return NRF_ERROR_FORBIDDEN;
+    }
+
+    ble_gatts_hvx_params_t hvx_params = {
+        .handle = service->char_btn_state.value_handle,
+        .type = BLE_GATT_HVX_INDICATION,
+        .offset = 0,
+        .p_data = NULL,
+        .p_len = NULL   // Risky move ?
+    };
+    
+    // Check for previous indication being processed
+    if(service->inidication_free == 0)
+    {
+        NRF_LOG_INFO("Indications are not available yet");
+        return NRF_ERROR_INVALID_STATE;
+    }
+    NRF_LOG_INFO("Indications are available");
+
+    error_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+    NRF_LOG_INFO("%s: retval of sd_ble_gatts_hvx : %x", __FUNCTION__, error_code);
+    VERIFY_SUCCESS(error_code);
+    service->inidication_free = 0;
 
     return NRF_SUCCESS;
 }

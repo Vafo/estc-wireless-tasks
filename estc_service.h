@@ -66,6 +66,7 @@ typedef struct
     uint16_t service_handle;
     uint16_t connection_handle;
     uint16_t hvn_available_queue_element_count;
+    uint8_t inidication_free;
     // TODO: 6.3. Add handles for characterstic (type: ble_gatts_char_handles_t)
     ble_gatts_char_handles_t char_1;
     ble_gatts_char_handles_t char_hello;
@@ -81,5 +82,8 @@ ret_code_t estc_ble_service_hello_update(ble_estc_service_t *service);
 
 ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service);
 
+ret_code_t estc_ble_service_btn_state_set(ble_estc_service_t *service, uint8_t *new_state);
+
+ret_code_t estc_ble_service_btn_state_indicate(ble_estc_service_t *service);
 
 #endif /* ESTC_SERVICE_H__ */
