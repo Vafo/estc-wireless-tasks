@@ -122,7 +122,7 @@ ESTC_SERVICE_DEF(m_estc_service); /**< ESTC example BLE service */
 static void advertising_start(void);
 static void periodic_notifier_handler(void *p_ctx)
 {
-    estc_ble_service_hello_notify(&m_estc_service);
+    estc_ble_service_hello_update(&m_estc_service);
 }
 
 /**@brief Callback function for asserts in the SoftDevice.

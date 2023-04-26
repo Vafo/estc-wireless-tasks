@@ -246,10 +246,39 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
     return NRF_SUCCESS;
 }
 
+ret_code_t estc_ble_service_hello_update(ble_estc_service_t *service)
+{
+    static uint8_t inverter = 0;
+    ret_code_t error_code = NRF_SUCCESS;
+
+    uint16_t val_len = inverter ? sizeof(m_char_hello_val_reversed) / sizeof(m_char_hello_val_reversed[0]) : \
+                                  sizeof(m_char_hello_val) / sizeof(m_char_hello_val[0]);
+    uint8_t *val = inverter ? m_char_hello_val_reversed : m_char_hello_val;
+
+    ble_gatts_value_t new_val = {
+        .p_value = val,
+        .len = val_len,
+        .offset = 0
+    };
+
+    error_code = sd_ble_gatts_value_set(service->connection_handle, service->char_hello.value_handle, &new_val);
+    APP_ERROR_CHECK(error_code);
+    
+    error_code = estc_ble_service_hello_notify(service);
+    
+    if(error_code == NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("Notified with val %s, val_len = %d", val, val_len);
+    }
+
+    inverter ^= 1;
+
+    return NRF_SUCCESS;
+}
+
 // Check for events
 ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
 {
-    static uint8_t inverter = 0;
     NRF_LOG_INFO("Trying to notify ...");
     if(service->connection_handle == BLE_CONN_HANDLE_INVALID)
     {
@@ -265,18 +294,14 @@ ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
         return NRF_ERROR_FORBIDDEN;
     }
 
-    uint16_t val_len = inverter ? sizeof(m_char_hello_val_reversed) / sizeof(m_char_hello_val_reversed[0]) : \
-                                  sizeof(m_char_hello_val) / sizeof(m_char_hello_val[0]);
-    uint8_t *val = inverter ? m_char_hello_val_reversed : m_char_hello_val;
-
     ble_gatts_hvx_params_t hvx_params = {
         .handle = service->char_hello.value_handle,
         .type = BLE_GATT_HVX_NOTIFICATION,
         .offset = 0,
-        .p_data = val,
-        .p_len = &val_len
+        .p_data = NULL,
+        .p_len = NULL   // Risky move ?
     };
-
+    
     if(service->hvn_available_queue_element_count == 0)
     {
         NRF_LOG_INFO("No space left in hvn queue");
@@ -285,12 +310,9 @@ ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
     NRF_LOG_INFO("There is space in hvn queue");
 
     error_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
-    service->hvn_available_queue_element_count--;
     NRF_LOG_INFO("Retval of sd_ble_gatts_hvx : %x", error_code);
-    // APP_ERROR_CHECK(error_code);
-    
-    NRF_LOG_INFO("Notified with val %s, val_len = %d", val, val_len);
-    inverter ^= 1;
+    VERIFY_SUCCESS(error_code);
+    service->hvn_available_queue_element_count--;
 
     return NRF_SUCCESS;
 }
