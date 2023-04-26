@@ -108,6 +108,9 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 #define PERIODIC_NOTIFIER_PERIOD_MS 5000
 APP_TIMER_DEF(m_periodic_notifier);
 
+#define PERIODIC_INDICATOR_PERIOD_MS 2000
+APP_TIMER_DEF(m_periodic_indicator);
+
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 
 static ble_uuid_t m_adv_uuids[] =                                               /**< Universally unique service identifiers. */
@@ -117,12 +120,19 @@ static ble_uuid_t m_adv_uuids[] =                                               
     {ESTC_SERVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN}
 };
 
-ble_estc_service_t m_estc_service; /**< ESTC example BLE service */
+ESTC_SERVICE_DEF(m_estc_service); /**< ESTC example BLE service */
 
 static void advertising_start(void);
+
 static void periodic_notifier_handler(void *p_ctx)
 {
-    estc_ble_service_hello_notify(&m_estc_service);
+    estc_ble_service_hello_update(&m_estc_service);
+}
+
+static void periodic_indicator_handler(void *p_ctx)
+{
+    uint8_t state = nrf_gpio_pin_input_get(BSP_BUTTON_0);
+    estc_ble_service_btn_state_set(&m_estc_service, &state);
 }
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -152,6 +162,9 @@ static void timers_init(void)
     APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_create(&m_periodic_notifier, APP_TIMER_MODE_REPEATED, periodic_notifier_handler);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_create(&m_periodic_indicator, APP_TIMER_MODE_REPEATED, periodic_indicator_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -287,7 +300,13 @@ static void conn_params_init(void)
  */
 static void application_timers_start(void)
 {
-    app_timer_start(m_periodic_notifier, APP_TIMER_TICKS(PERIODIC_NOTIFIER_PERIOD_MS), NULL);
+    ret_code_t err_code;
+
+    err_code = app_timer_start(m_periodic_notifier, APP_TIMER_TICKS(PERIODIC_NOTIFIER_PERIOD_MS), NULL);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(m_periodic_indicator, APP_TIMER_TICKS(PERIODIC_INDICATOR_PERIOD_MS), NULL);
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -355,7 +374,6 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected (conn_handle: %d)", p_ble_evt->evt.gap_evt.conn_handle);
             // LED indication will be changed when advertising starts.
-            m_estc_service.connection_handle = BLE_CONN_HANDLE_INVALID;
             break;
 
         case BLE_GAP_EVT_CONNECTED:
@@ -368,7 +386,6 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
 
-            m_estc_service.connection_handle = m_conn_handle;
             break;
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -429,6 +446,10 @@ static void ble_stack_init(void)
     uint32_t ram_start = 0;
     err_code = nrf_sdh_ble_default_cfg_set(APP_BLE_CONN_CFG_TAG, &ram_start);
     APP_ERROR_CHECK(err_code);
+    
+    ble_cfg_t custom_cfg = {0};
+    custom_cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size = ESTC_SERVICE_HVN_QUEUE_SIZE;
+    sd_ble_cfg_set(BLE_CONN_CFG_GATTS, &custom_cfg, ram_start);
 
     // Enable BLE stack.
     err_code = nrf_sdh_ble_enable(&ram_start);
@@ -446,6 +467,7 @@ static void ble_stack_init(void)
 static void bsp_event_handler(bsp_event_t event)
 {
     ret_code_t err_code;
+    uint8_t btn_state;
 
     switch (event)
     {
@@ -461,6 +483,12 @@ static void bsp_event_handler(bsp_event_t event)
                 APP_ERROR_CHECK(err_code);
             }
             break; // BSP_EVENT_DISCONNECT
+        
+        case BSP_EVENT_KEY_0:
+            btn_state = 1;
+            estc_ble_service_btn_state_set(&m_estc_service, &btn_state);
+            break;
+
         default:
             break;
     }
