@@ -47,6 +47,7 @@ uint8_t m_char_hello_val[] = "Hello";
 uint8_t m_char_hello_val_reversed[] = "olleH";
 
 static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service);
+static ret_code_t estc_ble_check_user_need_for_hvx(uint16_t conn_handle, uint16_t cccd_handle, uint16_t hvx_type);
 
 ret_code_t estc_ble_service_init(ble_estc_service_t *service)
 {
@@ -71,6 +72,45 @@ ret_code_t estc_ble_service_init(ble_estc_service_t *service)
     service->connection_handle = BLE_CONN_HANDLE_INVALID;
 
     return estc_ble_add_characteristics(service);
+}
+
+void estc_ble_service_on_ble_event(const ble_evt_t *p_ble_evt, void *ctx)
+{
+    // ret_code_t err_code = NRF_SUCCESS;
+    ble_estc_service_t *p_estc_service = (ble_estc_service_t *) ctx;
+    uint16_t m_conn_handle;
+
+    switch (p_ble_evt->header.evt_id)
+    {
+        case BLE_GAP_EVT_DISCONNECTED:
+            p_estc_service->connection_handle = BLE_CONN_HANDLE_INVALID;
+            break;
+
+        case BLE_GAP_EVT_CONNECTED:
+            m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+            p_estc_service->connection_handle = m_conn_handle;
+            p_estc_service->hvn_available_queue_element_count = ESTC_SERVICE_HVN_QUEUE_SIZE;
+            break;
+
+        case BLE_GATTS_EVT_HVN_TX_COMPLETE:
+            m_conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
+            if(m_conn_handle == p_estc_service->connection_handle)
+            {
+                p_estc_service->hvn_available_queue_element_count += \
+                            p_ble_evt->evt.gatts_evt.params.hvn_tx_complete.count;
+            }
+            break;
+
+        case BLE_GATTS_EVT_TIMEOUT:
+            // Disconnect on GATT Server timeout event.
+            
+            break;
+
+        
+        default:
+            // No implementation needed.
+            break;
+    }
 }
 
 static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
@@ -155,11 +195,12 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
     
     error_code = sd_ble_gatts_characteristic_add(service->service_handle, &char_hello_md, &char_hello_value, &service->char_hello);
     APP_ERROR_CHECK(error_code);
-    
+
 
     return NRF_SUCCESS;
 }
 
+// Check for events
 ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
 {
     static uint8_t inverter = 0;
@@ -169,8 +210,15 @@ ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
         NRF_LOG_INFO("... connection handle is invalid");
         return BLE_ERROR_INVALID_CONN_HANDLE;
     }
-
     ret_code_t error_code = NRF_SUCCESS;
+
+    error_code = estc_ble_check_user_need_for_hvx(service->connection_handle, service->char_hello.cccd_handle, BLE_GATT_HVX_NOTIFICATION);
+    if(error_code != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("... attempted to notify client, who doesn't need it");
+        return NRF_ERROR_FORBIDDEN;
+    }
+
     uint16_t val_len = inverter ? sizeof(m_char_hello_val_reversed) / sizeof(m_char_hello_val_reversed[0]) : \
                                   sizeof(m_char_hello_val) / sizeof(m_char_hello_val[0]);
     uint8_t *val = inverter ? m_char_hello_val_reversed : m_char_hello_val;
@@ -183,7 +231,15 @@ ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
         .p_len = &val_len
     };
 
+    if(service->hvn_available_queue_element_count == 0)
+    {
+        NRF_LOG_INFO("No space left in hvn queue");
+        return NRF_ERROR_NO_MEM;
+    }
+    NRF_LOG_INFO("There is space in hvn queue");
+
     error_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+    service->hvn_available_queue_element_count--;
     NRF_LOG_INFO("Retval of sd_ble_gatts_hvx : %x", error_code);
     // APP_ERROR_CHECK(error_code);
     
@@ -191,4 +247,37 @@ ret_code_t estc_ble_service_hello_notify(ble_estc_service_t *service)
     inverter ^= 1;
 
     return NRF_SUCCESS;
+}
+
+static ret_code_t estc_ble_check_user_need_for_hvx(uint16_t conn_handle, uint16_t cccd_handle, uint16_t hvx_type)
+{
+    uint16_t m_cccd_value;
+    ret_code_t error_code;
+    
+    ble_gatts_value_t cccd_value_param = {
+        .len = sizeof(m_cccd_value),
+        .p_value = (uint8_t *) &m_cccd_value
+    };
+
+    error_code = sd_ble_gatts_value_get( conn_handle, 
+                                         cccd_handle, 
+                                         &cccd_value_param);
+    
+    if(error_code != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("sd_ble_gatts_value_get retval %x", error_code);
+    }
+    
+    // BLE_ERROR_GATTS_SYS_ATTR_MISSING is caused, whenever user haven't accessed CCCD
+    VERIFY_SUCCESS(error_code);
+    
+    // Debug info
+    if(cccd_value_param.len != sizeof(m_cccd_value))
+    {
+        NRF_LOG_INFO("... CCCD is more than %d bytes, it is %d", sizeof(m_cccd_value), cccd_value_param.len);
+        return NRF_ERROR_INVALID_STATE;
+    }
+    
+    // Maybe there is better way around to mitigate notifying users, who don't need it
+    return m_cccd_value == hvx_type ? NRF_SUCCESS : NRF_ERROR_FORBIDDEN;
 }

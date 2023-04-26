@@ -117,7 +117,7 @@ static ble_uuid_t m_adv_uuids[] =                                               
     {ESTC_SERVICE_UUID, BLE_UUID_TYPE_VENDOR_BEGIN}
 };
 
-ble_estc_service_t m_estc_service; /**< ESTC example BLE service */
+ESTC_SERVICE_DEF(m_estc_service); /**< ESTC example BLE service */
 
 static void advertising_start(void);
 static void periodic_notifier_handler(void *p_ctx)
@@ -355,7 +355,6 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected (conn_handle: %d)", p_ble_evt->evt.gap_evt.conn_handle);
             // LED indication will be changed when advertising starts.
-            m_estc_service.connection_handle = BLE_CONN_HANDLE_INVALID;
             break;
 
         case BLE_GAP_EVT_CONNECTED:
@@ -368,7 +367,6 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
 
-            m_estc_service.connection_handle = m_conn_handle;
             break;
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -429,6 +427,10 @@ static void ble_stack_init(void)
     uint32_t ram_start = 0;
     err_code = nrf_sdh_ble_default_cfg_set(APP_BLE_CONN_CFG_TAG, &ram_start);
     APP_ERROR_CHECK(err_code);
+    
+    ble_cfg_t custom_cfg = {0};
+    custom_cfg.conn_cfg.params.gatts_conn_cfg.hvn_tx_queue_size = ESTC_SERVICE_HVN_QUEUE_SIZE;
+    sd_ble_cfg_set(BLE_CONN_CFG_GATTS, &custom_cfg, ram_start);
 
     // Enable BLE stack.
     err_code = nrf_sdh_ble_enable(&ram_start);

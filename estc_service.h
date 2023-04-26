@@ -51,15 +51,25 @@
 // TODO: 3. Pick a characteristic UUID and define it:
 #define ESTC_GATT_CHAR_1_UUID 0xABBB
 #define ESTC_GATT_CHAR_HELLO_UUID 0xABBC
+#define ESTC_GATT_CHAR_BTN_CLICK_UUID 0xABBD
+
+#define ESTC_SERVICE_HVN_QUEUE_SIZE 2
+
+#define ESTC_SERVICE_DEF(_name)                                                                  \
+static ble_estc_service_t _name;                                                                     \
+NRF_SDH_BLE_OBSERVER(_name ## _ble_obs,                                                             \
+                     BLE_ADV_BLE_OBSERVER_PRIO,                                                     \
+                     estc_ble_service_on_ble_event, &_name)
 
 typedef struct
 {
     uint16_t service_handle;
     uint16_t connection_handle;
-
+    uint16_t hvn_available_queue_element_count;
     // TODO: 6.3. Add handles for characterstic (type: ble_gatts_char_handles_t)
     ble_gatts_char_handles_t char_1;
     ble_gatts_char_handles_t char_hello;
+    ble_gatts_char_handles_t char_btn_click;
 } ble_estc_service_t;
 
 
