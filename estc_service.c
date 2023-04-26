@@ -166,21 +166,21 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
     error_code = sd_ble_uuid_vs_add(&base_uuid, &char_hello_uuid.type);
     APP_ERROR_CHECK(error_code);
 
-    ble_gatts_attr_md_t cccd_md = {
+    ble_gatts_attr_md_t char_hello_cccd_md = {
         .vloc = BLE_GATTS_VLOC_STACK
     };
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.read_perm);
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&char_hello_cccd_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&char_hello_cccd_md.write_perm);
 
-    ble_gatts_char_pf_t char_pf = {
+    ble_gatts_char_pf_t char_hello_pf = {
         .format = BLE_GATT_CPF_FORMAT_UTF8S,
     };
 
     ble_gatts_char_md_t char_hello_md = {0};
     char_hello_md.char_props.read = 1;
     char_hello_md.char_props.notify = 1;
-    char_hello_md.p_char_pf = &char_pf;
-    char_hello_md.p_cccd_md = &cccd_md;
+    char_hello_md.p_char_pf = &char_hello_pf;
+    char_hello_md.p_cccd_md = &char_hello_cccd_md;
     
     ble_gatts_attr_md_t char_hello_value_md = {0};
     char_hello_value_md.vloc = BLE_GATTS_VLOC_STACK;
@@ -196,6 +196,52 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
     error_code = sd_ble_gatts_characteristic_add(service->service_handle, &char_hello_md, &char_hello_value, &service->char_hello);
     APP_ERROR_CHECK(error_code);
 
+    // BTN_STATE Charecteristic
+
+    ble_uuid_t btn_st_uuid = {
+        .uuid = ESTC_GATT_CHAR_BTN_STATE_UUID
+    };
+
+    error_code = sd_ble_uuid_vs_add(&base_uuid, &btn_st_uuid.type);
+    APP_ERROR_CHECK(error_code);
+
+    ble_gatts_char_md_t btn_st_char_md = {0};
+
+    ble_gatts_attr_md_t btn_st_cccd_md = {
+        .vloc = BLE_GATTS_VLOC_STACK
+    };
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&btn_st_cccd_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&btn_st_cccd_md.write_perm);
+
+    ble_gatts_char_pf_t btn_st_char_pf = {
+        .format = BLE_GATT_CPF_FORMAT_BOOLEAN
+    };
+
+    btn_st_char_md.char_props.read = 1;
+    btn_st_char_md.char_props.indicate = 1;
+    btn_st_char_md.p_char_pf = &btn_st_char_pf;
+    btn_st_char_md.p_cccd_md = &btn_st_cccd_md;
+
+
+    ble_gatts_attr_t btn_st_value = {0};
+
+    ble_gatts_attr_md_t btn_st_value_md = {
+        .vloc = BLE_GATTS_VLOC_STACK
+    };
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&btn_st_value_md.read_perm);
+
+    uint8_t btn_st_init_val = 0;
+
+    btn_st_value.p_attr_md = &btn_st_value_md;
+    btn_st_value.p_uuid = &btn_st_uuid;
+    btn_st_value.init_len = sizeof(uint8_t);
+    btn_st_value.max_len = sizeof(uint8_t);
+    btn_st_value.p_value = &btn_st_init_val;
+
+    error_code = sd_ble_gatts_characteristic_add(service->service_handle, &btn_st_char_md, &btn_st_value, &service->char_btn_state);
+    APP_ERROR_CHECK(error_code);
 
     return NRF_SUCCESS;
 }
